@@ -1,14 +1,77 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <base target="_top">
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>น้องปันหา หาให้</title>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <!-- viewport-fit=cover : ให้ env(safe-area-inset-*) ทำงานบนมือถือจอบาก -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>น้องปันหา หาให้</title>
+  <style>
+    /* ปัญหาเดิม: iframe สูง 100vh
+       บนมือถือ 100vh = ความสูงจอ "ตอนแถบเครื่องมือเบราว์เซอร์ซ่อนอยู่"
+       ซึ่งสูงกว่าพื้นที่ที่มองเห็นจริง 80-150px
+       ส่วน body ข้างนอกก็ไม่มี overflow ให้เลื่อน
+       ผลคือก้นของ iframe ถูกดันไปอยู่ใต้แถบเครื่องมือถาวร เลื่อนไปดูไม่ได้
+
+       ทางแก้: ใช้ 100dvh (dynamic viewport height) ซึ่งหดตามแถบเครื่องมือจริง
+       และ fix ตำแหน่งไว้กับ viewport เพื่อกันหน้าแม่เลื่อนสวนกับหน้าลูก */
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;          /* หน้าแม่ไม่ต้องเลื่อน — ให้ข้างใน iframe เลื่อนอย่างเดียว */
+      background: #f6fbfb;
+      overscroll-behavior: none; /* กัน pull-to-refresh มาแย่ง gesture ของหน้าลูก */
+    }
+
+    #app {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100vh;             /* fallback สำหรับเบราว์เซอร์เก่า */
+      height: 100dvh;            /* Safari 15.4+ / Chrome 108+ */
+    }
+
+    #app iframe {
+      display: block;            /* กันช่องว่าง ~4px จาก inline baseline */
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+  </style>
 </head>
 <body>
-    <iframe style="width: 100%; height: 100vh;" scrolling="yes" src="https://script.google.com/macros/s/AKfycbzFx8ft-6-x0KvJgUsIwXh8I5oZrzQ1S-9Stq2E8XFqQbWehqZxcoVeBDK2uebg3_I_Bw/exec" frameborder="0"></iframe>
+  <div id="app">
+    <iframe
+      src="https://script.google.com/macros/s/AKfycbySQWmssjE37DmqSMZ3yjgWYt7rN3N-5dTs0CDD-xITJJDjXyPMlLzXSFE6W5c_V79J_w/exec"
+      title="น้องปันหา หาให้"
+      scrolling="yes"
+      allow="clipboard-write"></iframe>
+  </div>
+
+  <script>
+    // เบราว์เซอร์เก่าที่ยังไม่รู้จัก dvh: คำนวณความสูงจริงเองแล้วอัปเดตตอนแถบเครื่องมือขยับ
+    (function () {
+      if (CSS && CSS.supports && CSS.supports('height', '100dvh')) return;
+
+      var app = document.getElementById('app');
+
+      function resize() {
+        var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+        app.style.height = h + 'px';
+      }
+
+      resize();
+      window.addEventListener('resize', resize, { passive: true });
+      window.addEventListener('orientationchange', function () {
+        setTimeout(resize, 250);
+      });
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', resize, { passive: true });
+      }
+    })();
+  </script>
 </body>
 </html>
-
