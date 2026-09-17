@@ -4,38 +4,29 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <!-- viewport-fit=cover : ให้ env(safe-area-inset-*) ทำงานบนมือถือจอบาก -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>น้องปันหา หาให้</title>
   <style>
-    /* ปัญหาเดิม: iframe สูง 100vh
-       บนมือถือ 100vh = ความสูงจอ "ตอนแถบเครื่องมือเบราว์เซอร์ซ่อนอยู่"
-       ซึ่งสูงกว่าพื้นที่ที่มองเห็นจริง 80-150px
-       ส่วน body ข้างนอกก็ไม่มี overflow ให้เลื่อน
-       ผลคือก้นของ iframe ถูกดันไปอยู่ใต้แถบเครื่องมือถาวร เลื่อนไปดูไม่ได้
-
-       ทางแก้: ใช้ 100dvh (dynamic viewport height) ซึ่งหดตามแถบเครื่องมือจริง
-       และ fix ตำแหน่งไว้กับ viewport เพื่อกันหน้าแม่เลื่อนสวนกับหน้าลูก */
+    /* 100dvh หดตามแถบเครื่องมือเบราว์เซอร์จริง ต่างจาก 100vh ที่คงที่
+       ทำให้ก้นของ iframe ไม่ถูกดันไปอยู่ใต้แถบเครื่องมือ */
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
-      overflow: hidden;          /* หน้าแม่ไม่ต้องเลื่อน — ให้ข้างใน iframe เลื่อนอย่างเดียว */
+      overflow: hidden;
       background: #f6fbfb;
-      overscroll-behavior: none; /* กัน pull-to-refresh มาแย่ง gesture ของหน้าลูก */
+      overscroll-behavior: none;
     }
-
     #app {
       position: fixed;
       top: 0;
       left: 0;
       width: 100%;
-      height: 100vh;             /* fallback สำหรับเบราว์เซอร์เก่า */
-      height: 100dvh;            /* Safari 15.4+ / Chrome 108+ */
+      height: 100vh;
+      height: 100dvh;
     }
-
     #app iframe {
-      display: block;            /* กันช่องว่าง ~4px จาก inline baseline */
+      display: block;
       width: 100%;
       height: 100%;
       border: 0;
@@ -43,33 +34,49 @@
   </style>
 </head>
 <body>
-  <div id="app">
-    <iframe
-      src="https://script.google.com/macros/s/AKfycbyxKkkJ9j_Cm86PhNqHQzH7i75PDDZ3XjDcQUXEpHC4k79kX57xz8n_dqPL_Ei_RuFOVQ/exec"
-      title="น้องปันหา หาให้"
-      scrolling="yes"
-      allow="clipboard-write"></iframe>
-  </div>
+  <div id="app"></div>
 
   <script>
-    // เบราว์เซอร์เก่าที่ยังไม่รู้จัก dvh: คำนวณความสูงจริงเองแล้วอัปเดตตอนแถบเครื่องมือขยับ
     (function () {
-      if (CSS && CSS.supports && CSS.supports('height', '100dvh')) return;
+      var BASE = 'https://script.google.com/macros/s/AKfycbwSoIDeNjYQxwEw-U-bt_zWJGxt0kj_XMI4FK6I3Xmog7Jib46fhqkaBgd_9qfJzbpyrw/exec';
 
-      var app = document.getElementById('app');
+      // ส่งต่อพารามิเตอร์จาก URL ของหน้านี้เข้าไปใน iframe
+      // เช่น  pun-ha-lab-pcmc.vercel.app/?q=CBC  ->  .../exec?q=CBC
+      // จำเป็นเพราะหน้าที่อยู่ใน iframe มองไม่เห็น URL ของหน้าแม่
+      var ALLOWED = ['q', 'search', 'view'];
+      var src = BASE;
 
-      function resize() {
-        var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-        app.style.height = h + 'px';
-      }
+      try {
+        var incoming = new URLSearchParams(window.location.search);
+        var pass = [];
+        for (var i = 0; i < ALLOWED.length; i++) {
+          var key = ALLOWED[i];
+          var val = incoming.get(key);
+          if (val) pass.push(encodeURIComponent(key) + '=' + encodeURIComponent(val));
+        }
+        if (pass.length) src = BASE + '?' + pass.join('&');
+      } catch (e) {}
 
-      resize();
-      window.addEventListener('resize', resize, { passive: true });
-      window.addEventListener('orientationchange', function () {
-        setTimeout(resize, 250);
-      });
-      if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', resize, { passive: true });
+      var frame = document.createElement('iframe');
+      frame.src = src;
+      frame.title = 'น้องปันหา หาให้';
+      frame.setAttribute('scrolling', 'yes');
+      frame.setAttribute('allow', 'clipboard-write');
+      document.getElementById('app').appendChild(frame);
+
+      // เบราว์เซอร์เก่าที่ยังไม่รู้จัก dvh: คำนวณความสูงเองแล้วอัปเดตตอนแถบเครื่องมือขยับ
+      if (!(window.CSS && CSS.supports && CSS.supports('height', '100dvh'))) {
+        var app = document.getElementById('app');
+        var resize = function () {
+          var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+          app.style.height = h + 'px';
+        };
+        resize();
+        window.addEventListener('resize', resize, { passive: true });
+        window.addEventListener('orientationchange', function () { setTimeout(resize, 250); });
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', resize, { passive: true });
+        }
       }
     })();
   </script>
