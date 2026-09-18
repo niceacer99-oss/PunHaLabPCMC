@@ -38,12 +38,12 @@
 
   <script>
     (function () {
-      var BASE = 'https://script.google.com/macros/s/AKfycbwf4wzFkM9dpq9epXAd-sAOMkbf6L-_ElaF7EWfOt_znElwFOipCFbgwnva6llbb40koQ/exec';
+      var BASE = 'https://script.google.com/macros/s/AKfycbzukib04lXoWwlyOGGRowBKYndx2znBm9jEyTNOj0Jj1oj0vXgLaiqyK6WGKpG5UkvOnw/exec';
 
       // ส่งต่อพารามิเตอร์จาก URL ของหน้านี้เข้าไปใน iframe
       // เช่น  pun-ha-lab-pcmc.vercel.app/?q=CBC  ->  .../exec?q=CBC
       // จำเป็นเพราะหน้าที่อยู่ใน iframe มองไม่เห็น URL ของหน้าแม่
-      var ALLOWED = ['q', 'search', 'view'];
+      var ALLOWED = ['q', 'search', 'view', 'check', 'item'];
       var src = BASE;
 
       try {
