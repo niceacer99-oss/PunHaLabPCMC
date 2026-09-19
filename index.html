@@ -36,6 +36,55 @@
 <body>
   <div id="app"></div>
 
+  <!-- LIFF SDK — ต้องโหลดที่หน้านี้ ไม่ใช่ในหน้าที่อยู่ข้างใน iframe
+       เพราะ LINE ยอมรับเฉพาะหน้าที่ URL ตรงกับ Endpoint URL ที่ตั้งไว้เท่านั้น -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+  <script>
+    // ════════ สะพาน LIFF ════════
+    // หน้าข้างในสั่งงานผ่าน postMessage เพราะคนละโดเมน เรียกฟังก์ชันข้ามกันไม่ได้
+    (function () {
+      var LIFF_ID = '2011666406-VnevGqdL';
+
+      var ready = false;
+
+      function reply(ok, why) {
+        var f = document.querySelector('#app iframe');
+        if (f && f.contentWindow) {
+          f.contentWindow.postMessage({ t: 'liff-send-result', ok: !!ok, why: why || '' }, '*');
+        }
+      }
+
+      if (LIFF_ID && window.liff) {
+        try {
+          liff.init({ liffId: LIFF_ID })
+            .then(function () { ready = true; })
+            .catch(function () { ready = false; });
+        } catch (e) {}
+      }
+
+      window.addEventListener('message', function (ev) {
+        // รับคำสั่งจากหน้าข้างในเท่านั้น
+        if (!/^https:\/\/([a-z0-9-]+\.)*(googleusercontent|script\.google)\.com$/.test(ev.origin)) return;
+        var d = ev.data;
+        if (!d || d.t !== 'liff-send' || !d.text) return;
+
+        if (!ready || !window.liff || !liff.isInClient || !liff.isInClient()) {
+          reply(false, 'no-liff');
+          return;
+        }
+        try {
+          liff.sendMessages([{ type: 'text', text: String(d.text).slice(0, 4000) }])
+            .then(function () {
+              reply(true);
+              setTimeout(function () { try { liff.closeWindow(); } catch (e) {} }, 150);
+            })
+            .catch(function (err) { reply(false, String(err && err.message || err)); });
+        } catch (e) { reply(false, 'throw'); }
+      });
+    })();
+  </script>
+
   <script>
     (function () {
       var BASE = 'https://script.google.com/macros/s/AKfycbwaEleCX7fF1WCig8avgDekRVysKy9g6vBBWNONMlI8Mw1-9k8UtsjlI0j0wNgcfLfs8A/exec';
