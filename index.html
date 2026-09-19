@@ -47,19 +47,38 @@
       var LIFF_ID = '2011666406-VnevGqdL';
 
       var ready = false;
+      var asked = false;     // หน้าข้างในขอโปรไฟล์มาแล้วหรือยัง
 
-      function reply(ok, why) {
+      function post(msg) {
         var f = document.querySelector('#app iframe');
-        if (f && f.contentWindow) {
-          f.contentWindow.postMessage({ t: 'liff-send-result', ok: !!ok, why: why || '' }, '*');
-        }
+        if (f && f.contentWindow) f.contentWindow.postMessage(msg, '*');
+      }
+
+      // ── ส่งตัวตนผู้ใช้ให้หน้าข้างใน ──────────────────────
+      // หน้าข้างในอยู่ลึกอีกชั้นใน iframe ของ Apps Script จึงเรียก LIFF เองไม่ได้
+      // LINE ยอมให้เฉพาะหน้าที่ URL ตรงกับ Endpoint URL เท่านั้น ซึ่งคือหน้านี้
+      function announce() {
+        if (!ready || !window.liff) { post({ t: 'liff-profile', ok: false, why: 'no-liff' }); return; }
+
+        // เปิดนอก LINE แล้วยังไม่ล็อกอิน — ไม่บังคับให้ล็อกอิน
+        // หน้าข้างในจะกลับไปใช้ localStorage เองตามเดิม
+        if (!liff.isLoggedIn()) { post({ t: 'liff-profile', ok: false, why: 'not-logged-in' }); return; }
+
+        liff.getProfile()
+          .then(function (pf) {
+            post({ t: 'liff-profile', ok: true,
+                   userId: pf.userId, displayName: pf.displayName || '' });
+          })
+          .catch(function (err) {
+            post({ t: 'liff-profile', ok: false, why: String(err && err.message || err) });
+          });
       }
 
       if (LIFF_ID && window.liff) {
         try {
           liff.init({ liffId: LIFF_ID })
-            .then(function () { ready = true; })
-            .catch(function () { ready = false; });
+            .then(function () { ready = true; if (asked) announce(); })
+            .catch(function () { ready = false; if (asked) announce(); });
         } catch (e) {}
       }
 
@@ -67,20 +86,15 @@
         // รับคำสั่งจากหน้าข้างในเท่านั้น
         if (!/^https:\/\/([a-z0-9-]+\.)*(googleusercontent|script\.google)\.com$/.test(ev.origin)) return;
         var d = ev.data;
-        if (!d || d.t !== 'liff-send' || !d.text) return;
+        if (!d) return;
 
-        if (!ready || !window.liff || !liff.isInClient || !liff.isInClient()) {
-          reply(false, 'no-liff');
+        // หน้าข้างในถามว่า "ใครใช้อยู่"
+        // ถ้า liff.init ยังไม่เสร็จ ให้จำไว้แล้วตอบทีหลัง
+        if (d.t === 'liff-who') {
+          asked = true;
+          if (ready || !LIFF_ID || !window.liff) announce();
           return;
         }
-        try {
-          liff.sendMessages([{ type: 'text', text: String(d.text).slice(0, 4000) }])
-            .then(function () {
-              reply(true);
-              setTimeout(function () { try { liff.closeWindow(); } catch (e) {} }, 150);
-            })
-            .catch(function (err) { reply(false, String(err && err.message || err)); });
-        } catch (e) { reply(false, 'throw'); }
       });
     })();
   </script>
