@@ -1,147 +1,82 @@
 <!DOCTYPE html>
-<html lang="th">
-<head>
-  <base target="_top">
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>น้องปันหา หาให้</title>
-  <style>
-    /* 100dvh หดตามแถบเครื่องมือเบราว์เซอร์จริง ต่างจาก 100vh ที่คงที่
-       ทำให้ก้นของ iframe ไม่ถูกดันไปอยู่ใต้แถบเครื่องมือ */
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      overflow: hidden;
-      background: #f6fbfb;
-      overscroll-behavior: none;
-    }
-    #app {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100vh;
-      height: 100dvh;
-    }
-    #app iframe {
-      display: block;
-      width: 100%;
-      height: 100%;
-      border: 0;
-    }
-  </style>
-</head>
-<body>
-  <div id="app"></div>
+<html lang="th"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ทดสอบโหลดรูป — น้องปันหา</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#F5F4F1;font-family:'Noto Sans Thai','Sarabun',-apple-system,'Segoe UI',sans-serif;
+     color:#1E211F;padding:16px;max-width:560px;margin:0 auto}
+h1{font-size:17px;color:#12535C;margin:0 0 4px}
+p.s{font-size:12px;color:#73787A;line-height:1.7;margin:0 0 14px}
+.sum{background:#FFFEFC;border:1px solid #E3E2DC;border-radius:12px;padding:13px 15px;margin-bottom:14px}
+.sum b{font-size:15px}
+.big{font-size:22px;font-weight:800;color:#12535C;display:block;margin:3px 0}
+.row{background:#FFFEFC;border:1px solid #E3E2DC;border-radius:12px;padding:11px 13px;
+     margin-bottom:9px;display:flex;align-items:center;gap:12px}
+.row img{width:74px;height:auto;flex:none;background:#E4EDEF;border-radius:8px}
+.row .i{flex:1;min-width:0;font-size:12px;line-height:1.6}
+.row .i b{display:block;font-size:12.5px}
+.st{font-size:11.5px;font-weight:800;border-radius:999px;padding:3px 10px;white-space:nowrap}
+.ok{background:#E3F3E9;color:#1F7A4C}
+.no{background:#FBE9E9;color:#A33}
+.wait{background:#F5F4F1;color:#8A8F91}
+.env{background:#FFFEFC;border:1px solid #E3E2DC;border-radius:12px;padding:12px 14px;
+     font-size:11px;color:#6B7378;line-height:1.75;word-break:break-all;margin-top:6px}
+.env b{color:#1E211F}
+</style></head><body>
 
-  <!-- LIFF SDK — ต้องโหลดที่หน้านี้ ไม่ใช่ในหน้าที่อยู่ข้างใน iframe
-       เพราะ LINE ยอมรับเฉพาะหน้าที่ URL ตรงกับ Endpoint URL ที่ตั้งไว้เท่านั้น -->
-  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<h1>ทดสอบโหลดรูปจาก GitHub Pages</h1>
+<p class="s">เปิดหน้านี้ <b>ผ่าน LINE บนเน็ตโรงพยาบาล</b> ถ้าทุกแถวขึ้น "โหลดได้" แปลว่าใช้วิธีเก็บรูปไว้ที่นี่ได้<br><b>img/</b> = รูปคาโรเซลวิธีใช้งาน (ตอนนี้ใส่ไว้ 3 ใบทดสอบ) · <b>app/</b> = รูปที่ย้ายออกจากไฟล์แอป 13 ไฟล์</p>
 
-  <script>
-    // ════════ สะพาน LIFF ════════
-    // หน้าข้างในสั่งงานผ่าน postMessage เพราะคนละโดเมน เรียกฟังก์ชันข้ามกันไม่ได้
-    (function () {
-      var LIFF_ID = '2011666406-VnevGqdL';
+<div class="sum"><b>ผลรวม</b><span class="big" id="sum">กำลังทดสอบ…</span>
+<span style="font-size:11.5px;color:#73787A" id="ms"></span></div>
 
-      var ready = false;
-      var asked = false;     // หน้าข้างในขอโปรไฟล์มาแล้วหรือยัง
+<div id="list"></div>
+<div class="env" id="env"></div>
 
-      function post(msg) {
-        var f = document.querySelector('#app iframe');
-        if (f && f.contentWindow) f.contentWindow.postMessage(msg, '*');
-      }
-
-      // ── ส่งตัวตนผู้ใช้ให้หน้าข้างใน ──────────────────────
-      // หน้าข้างในอยู่ลึกอีกชั้นใน iframe ของ Apps Script จึงเรียก LIFF เองไม่ได้
-      // LINE ยอมให้เฉพาะหน้าที่ URL ตรงกับ Endpoint URL เท่านั้น ซึ่งคือหน้านี้
-      function announce() {
-        if (!ready || !window.liff) { post({ t: 'liff-profile', ok: false, why: 'no-liff' }); return; }
-
-        // เปิดนอก LINE แล้วยังไม่ล็อกอิน — ไม่บังคับให้ล็อกอิน
-        // หน้าข้างในจะกลับไปใช้ localStorage เองตามเดิม
-        if (!liff.isLoggedIn()) { post({ t: 'liff-profile', ok: false, why: 'not-logged-in' }); return; }
-
-        liff.getProfile()
-          .then(function (pf) {
-            post({ t: 'liff-profile', ok: true,
-                   userId: pf.userId, displayName: pf.displayName || '' });
-          })
-          .catch(function (err) {
-            post({ t: 'liff-profile', ok: false, why: String(err && err.message || err) });
-          });
-      }
-
-      if (LIFF_ID && window.liff) {
-        try {
-          liff.init({ liffId: LIFF_ID })
-            .then(function () { ready = true; if (asked) announce(); })
-            .catch(function () { ready = false; if (asked) announce(); });
-        } catch (e) {}
-      }
-
-      window.addEventListener('message', function (ev) {
-        // รับคำสั่งจากหน้าข้างในเท่านั้น
-        if (!/^https:\/\/([a-z0-9-]+\.)*(googleusercontent|script\.google)\.com$/.test(ev.origin)) return;
-        var d = ev.data;
-        if (!d) return;
-
-        // หน้าข้างในถามว่า "ใครใช้อยู่"
-        // ถ้า liff.init ยังไม่เสร็จ ให้จำไว้แล้วตอบทีหลัง
-        if (d.t === 'liff-who') {
-          asked = true;
-          if (ready || !LIFF_ID || !window.liff) announce();
-          return;
-        }
-      });
-    })();
-  </script>
-
-  <script>
-    (function () {
-      var BASE = 'https://script.google.com/macros/s/AKfycbwaEleCX7fF1WCig8avgDekRVysKy9g6vBBWNONMlI8Mw1-9k8UtsjlI0j0wNgcfLfs8A/exec';
-
-      // ส่งต่อพารามิเตอร์จาก URL ของหน้านี้เข้าไปใน iframe
-      // เช่น  pun-ha-lab-pcmc.vercel.app/?q=CBC  ->  .../exec?q=CBC
-      // จำเป็นเพราะหน้าที่อยู่ใน iframe มองไม่เห็น URL ของหน้าแม่
-      var ALLOWED = ['q', 'search', 'view', 'check', 'item', 'oa', 'mode', 'sum'];
-      var src = BASE;
-
-      try {
-        var incoming = new URLSearchParams(window.location.search);
-        var pass = [];
-        for (var i = 0; i < ALLOWED.length; i++) {
-          var key = ALLOWED[i];
-          var val = incoming.get(key);
-          if (val) pass.push(encodeURIComponent(key) + '=' + encodeURIComponent(val));
-        }
-        if (pass.length) src = BASE + '?' + pass.join('&');
-      } catch (e) {}
-
-      var frame = document.createElement('iframe');
-      frame.src = src;
-      frame.title = 'น้องปันหา หาให้';
-      frame.setAttribute('scrolling', 'yes');
-      frame.setAttribute('allow', 'clipboard-write');
-      document.getElementById('app').appendChild(frame);
-
-      // เบราว์เซอร์เก่าที่ยังไม่รู้จัก dvh: คำนวณความสูงเองแล้วอัปเดตตอนแถบเครื่องมือขยับ
-      if (!(window.CSS && CSS.supports && CSS.supports('height', '100dvh'))) {
-        var app = document.getElementById('app');
-        var resize = function () {
-          var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-          app.style.height = h + 'px';
-        };
-        resize();
-        window.addEventListener('resize', resize, { passive: true });
-        window.addEventListener('orientationchange', function () { setTimeout(resize, 250); });
-        if (window.visualViewport) {
-          window.visualViewport.addEventListener('resize', resize, { passive: true });
-        }
-      }
-    })();
-  </script>
-</body>
-</html>
+<script>
+var FILES=['img/panha-how-01.png','img/panha-how-02.png','img/panha-how-03.png',
+           'app/gif-general.gif','app/gif-loading.gif','app/gif-success.gif','app/gif-empty.gif',
+           'app/gif-error.gif','app/quick-empty.png','app/qfp-loading.png','app/quick-toast.png',
+           'app/chonly-mascot.png','app/shared-0.png','app/mcard-btn.png','app/popup-moto.png',
+           'app/popup-machine.png'];
+var list=document.getElementById('list'), done=0, ok=0, t0=Date.now();
+FILES.forEach(function(f,i){
+  var el=document.createElement('div'); el.className='row';
+  el.innerHTML='<img id="im'+i+'" alt=""><span class="i"><b>'+f+'</b>'+
+    '<span id="d'+i+'" style="color:#8A8F91">กำลังโหลด…</span></span>'+
+    '<span class="st wait" id="s'+i+'">รอ</span>';
+  list.appendChild(el);
+  var st=Date.now();
+  var im=document.getElementById('im'+i);
+  im.onload=function(){
+    ok++; done++;
+    document.getElementById('s'+i).className='st ok';
+    document.getElementById('s'+i).textContent='โหลดได้';
+    document.getElementById('d'+i).textContent=im.naturalWidth+'×'+im.naturalHeight+
+      ' · '+(Date.now()-st)+' ms';
+    finish();
+  };
+  im.onerror=function(){
+    done++;
+    document.getElementById('s'+i).className='st no';
+    document.getElementById('s'+i).textContent='โหลดไม่ได้';
+    document.getElementById('d'+i).textContent='ถูกบล็อก หรือหาไฟล์ไม่เจอ';
+    finish();
+  };
+  im.src=f+'?t='+Date.now();
+});
+function finish(){
+  if(done<FILES.length) return;
+  var s=document.getElementById('sum');
+  s.textContent = ok===FILES.length ? 'ผ่านทั้งหมด '+ok+'/'+FILES.length
+                                    : 'ผ่าน '+ok+'/'+FILES.length+' — มีปัญหา';
+  s.style.color = ok===FILES.length ? '#1F7A4C' : '#A33';
+  document.getElementById('ms').textContent='ใช้เวลารวม '+(Date.now()-t0)+' ms';
+}
+document.getElementById('env').innerHTML=
+  '<b>ที่อยู่หน้านี้</b><br>'+location.href+'<br><br>'+
+  '<b>เบราว์เซอร์</b><br>'+navigator.userAgent;
+</script>
+</body></html>
