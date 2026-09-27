@@ -88,25 +88,36 @@
       // ── v77: ส่งสรุปเข้าแชท ────────────────────────────────
       // ส่งได้เฉพาะเปิดในแอป LINE จากห้องแชท (แชทเดี่ยว / กลุ่ม / ห้องหลายคน)
       // และ LIFF app ต้องเปิด scope chat_message.write ไว้ใน LINE Developers
-      function canSend() {
+      // คืนเหตุผลด้วย เวลาส่งไม่ได้จะได้รู้ว่าติดตรงไหน ('' = ส่งได้)
+      function whyNot() {
         try {
-          if (!ready || !window.liff || !liff.isInClient()) return false;
+          if (!window.liff) return 'no-sdk';
+          if (!ready) return 'init-failed';
+          if (!liff.isInClient()) return 'not-in-line';
           var c = liff.getContext();
-          return !!c && ['utou', 'group', 'room'].indexOf(c.type) > -1;
-        } catch (e) { return false; }
+          var type = c && c.type;
+          return ['utou', 'group', 'room'].indexOf(type) > -1 ? '' : 'context-' + type;
+        } catch (e) { return 'err'; }
       }
 
-      function sendSummary(text) {
+      // ตอบกลับไปที่หน้าที่ถามมาโดยตรง (ev.source)
+      // แอปอยู่ลึกหลายชั้นใน iframe ของ Apps Script ส่งเข้า iframe ชั้นแรกจะไม่ถึง
+      function answer(ev, msg) {
+        try { ev.source.postMessage(msg, ev.origin); } catch (e) {}
+      }
+
+      function sendSummary(ev, text) {
         // ยอมส่งเฉพาะข้อความสรุปของแอปเท่านั้น กันถูกใช้ส่งข้อความอื่นแทนผู้ใช้
         if (typeof text !== 'string' || text.indexOf('ยืนยันรายการ ') !== 0 || text.length > 3000) {
-          post({ t: 'liff-sent', ok: false, err: 'bad-text' });
+          answer(ev, { t: 'liff-sent', ok: false, err: 'bad-text' });
           return;
         }
-        if (!canSend()) { post({ t: 'liff-sent', ok: false, err: 'not-in-chat' }); return; }
+        var why = whyNot();
+        if (why) { answer(ev, { t: 'liff-sent', ok: false, err: why }); return; }
         liff.sendMessages([{ type: 'text', text: text }])
-          .then(function () { post({ t: 'liff-sent', ok: true }); })
+          .then(function () { answer(ev, { t: 'liff-sent', ok: true }); })
           .catch(function (err) {
-            post({ t: 'liff-sent', ok: false, err: String((err && (err.code || err.message)) || err) });
+            answer(ev, { t: 'liff-sent', ok: false, err: String((err && (err.code || err.message)) || err) });
           });
       }
 
@@ -126,13 +137,16 @@
 
         // v77: หน้าสรุปถามว่าส่งเข้าแชทได้ไหม (ตอบ false = แอปใช้ปุ่มคัดลอกแทน)
         if (d.t === 'liff-can-send') {
-          initDone.then(function () { post({ t: 'liff-can-send', ok: canSend() }); });
+          initDone.then(function () {
+            var why = whyNot();
+            answer(ev, { t: 'liff-can-send', ok: !why, why: why });
+          });
           return;
         }
 
         // v77: ผู้ใช้กด "ส่งเข้าแชท"
         if (d.t === 'liff-send') {
-          initDone.then(function () { sendSummary(d.text); });
+          initDone.then(function () { sendSummary(ev, d.text); });
           return;
         }
 
